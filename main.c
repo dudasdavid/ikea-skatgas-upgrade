@@ -4,13 +4,20 @@ int main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;   // Watchdog stop
 
-    P1DIR |= BIT2;             // P1.2 output
+    volatile unsigned long i;
 
     while(1)
     {
-        P1OUT ^= BIT2;         // Toggle LED
+        // LED ON: drive low
+        P1DIR |= BIT2;     // P1.2 output
+        P1OUT &= ~BIT2;    // drive low
 
-        volatile unsigned long i;
         for(i = 0; i < 50000; i++);
+
+        // LED OFF: high impedance
+        P1DIR &= ~BIT2;    // input = Hi-Z
+
+        for(i = 0; i < 50000; i++);
+
     }
 }
