@@ -18,3 +18,10 @@ echo ""
 echo "Build successful"
 echo ""
 $TOOL/bin/msp430-elf-size main.elf
+
+#$TOOL/bin/msp430-elf-objdump -h main.elf
+
+#$TOOL/bin/msp430-elf-objdump -s \
+#  --start-address=0xfff0 \
+#  --stop-address=0x10000 \
+#  main.elf
