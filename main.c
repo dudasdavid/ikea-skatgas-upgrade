@@ -27,15 +27,17 @@ int main(void)
     P1OUT &= ~LED_PIN;
     P1DIR |= LED_PIN;           // start ON
 
-    TACCR0 = 62500;
+    TACCR0 = 1500;
     TACCTL0 = CCIE;
-    TACTL = TASSEL_2 | ID_3 | MC_1 | TACLR;   // SMCLK / 8, up mode
+
+    BCSCTL3 |= LFXT1S_2;      // ACLK = VLO (~12 kHz)
+    TACTL = TASSEL_1 | ID_3 | MC_1 | TACLR;   // ACLK/8
 
     __enable_interrupt();
 
     while (1)
     {
-        __bis_SR_register(LPM0_bits | GIE);   // sleep until Timer_A interrupt
+        __bis_SR_register(LPM3_bits | GIE);  // sleep until Timer_A interrupt
     }
 }
 
