@@ -53,16 +53,16 @@ int main(void)
 
 void __attribute__((interrupt(TIMERA0_VECTOR))) Timer_A_ISR(void)
 {
+    TACTL |= TACLR;         // clear timer first after interrupt
+
     if (P1DIR & LED_PIN)
     {
         led_off();
-        TACCR0 = TICKS_10S;     // stay OFF for 10s
+        TACCR0 = TICKS_10S; // stay OFF for 10s
     }
     else
     {
         led_on();
-        TACCR0 = TICKS_5S;      // stay ON for 5s
+        TACCR0 = TICKS_5S; // stay ON for 5s
     }
-
-    TACTL |= TACLR;             // restart timer period cleanly
 }
