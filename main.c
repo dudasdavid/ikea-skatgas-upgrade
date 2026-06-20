@@ -5,8 +5,11 @@
 static void toggle_led(void)
 {
     if (P1DIR & LED_PIN)
+    {
         P1DIR &= ~LED_PIN;      // OFF = Hi-Z
-    else {
+    }
+    else
+    {
         P1OUT &= ~LED_PIN;
         P1DIR |= LED_PIN;       // ON = sink
     }
@@ -26,17 +29,23 @@ int main(void)
 
     TACCR0 = 62500;
     TACCTL0 = CCIE;
-    TACTL = TASSEL_2 | ID_3 | MC_1 | TACLR;
+    TACTL = TASSEL_2 | ID_3 | MC_1 | TACLR;   // SMCLK / 8, up mode
 
     __enable_interrupt();
 
     while (1)
     {
-        // no sleep yet
+        __bis_SR_register(LPM0_bits | GIE);   // sleep until Timer_A interrupt
     }
 }
 
 void __attribute__((interrupt(TIMERA0_VECTOR))) Timer_A_ISR(void)
 {
-    toggle_led();
+    static unsigned int div = 0;
+
+    if (++div >= 3)
+    {
+        div = 0;
+        toggle_led();
+    }
 }
