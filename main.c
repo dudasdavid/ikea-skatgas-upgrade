@@ -2,8 +2,14 @@
 
 #define LED_PIN BIT2
 
-#define TICKS_5S   7500    // VLO ~12kHz / 8 = ~1500 Hz, 5s  = 7500
-#define TICKS_10S  15000   // 10s = 15000
+// VLO ~12 kHz, ACLK/8 ~1500 Hz
+// 60000 / 1500 ≈ 40 seconds
+#define TICKS_40S   60000U
+
+// 4 h  = 14400 s  / 40 s = 360 chunks
+// 20 h = 72000 s  / 40 s = 1800 chunks
+#define ON_CHUNKS   360U
+#define OFF_CHUNKS  1800U
 
 static void led_on(void)
 {
@@ -20,26 +26,19 @@ int main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;
 
-    // clear alternate function selection for all pins
     P1SEL = 0x00;
 #ifdef P1SEL2
     P1SEL2 = 0x00;
 #endif
 
-    // clear all outputs and set all pins to output low to decrease power consumption
     P1OUT = 0x00;
-    P1DIR = 0xFF;      // all P1 pins output low
+    P1DIR = 0xFF;           // unused pins output low
 
-#ifdef P2DIR
-    P2OUT = 0x00;
-    P2DIR = 0xFF;
-#endif
-
-    led_on();               // start ON
+    led_on();               // start with 4h ON phase
 
     BCSCTL3 |= LFXT1S_2;    // ACLK = VLO ~12 kHz
 
-    TACCR0 = TICKS_5S;      // first interrupt after 5s
+    TACCR0 = TICKS_40S;
     TACCTL0 = CCIE;
     TACTL = TASSEL_1 | ID_3 | MC_1 | TACLR;   // ACLK / 8, up mode
 
@@ -53,16 +52,26 @@ int main(void)
 
 void __attribute__((interrupt(TIMERA0_VECTOR))) Timer_A_ISR(void)
 {
-    TACTL |= TACLR;         // clear timer first after interrupt
+    static unsigned int chunks = 0;
+
+    chunks++;
 
     if (P1DIR & LED_PIN)
     {
-        led_off();
-        TACCR0 = TICKS_10S; // stay OFF for 10s
+        // currently ON
+        if (chunks >= ON_CHUNKS)
+        {
+            chunks = 0;
+            led_off();
+        }
     }
     else
     {
-        led_on();
-        TACCR0 = TICKS_5S; // stay ON for 5s
+        // currently OFF
+        if (chunks >= OFF_CHUNKS)
+        {
+            chunks = 0;
+            led_on();
+        }
     }
 }
