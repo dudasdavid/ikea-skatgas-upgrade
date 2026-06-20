@@ -22,24 +22,21 @@ int main(void)
 #endif
 
     P1OUT &= ~LED_PIN;
-    P1DIR |= LED_PIN;       // ON = sink
+    P1DIR |= LED_PIN;           // start ON
 
     TACCR0 = 62500;
-    TACTL = TASSEL_2 | ID_3 | MC_1 | TACLR;   // SMCLK / 8, up mode
+    TACCTL0 = CCIE;
+    TACTL = TASSEL_2 | ID_3 | MC_1 | TACLR;
 
-    unsigned int div = 0;
+    __enable_interrupt();
 
     while (1)
     {
-        if (TACCTL0 & CCIFG)
-        {
-            TACCTL0 &= ~CCIFG;
-
-            if (++div >= 3)
-            {
-                div = 0;
-                toggle_led();
-            }
-        }
+        // no sleep yet
     }
+}
+
+void __attribute__((interrupt(TIMERA0_VECTOR))) Timer_A_ISR(void)
+{
+    toggle_led();
 }
