@@ -4,7 +4,8 @@
 
 // VLO ~12 kHz, ACLK/8 ~1500 Hz
 // 60000 / 1500 ≈ 40 seconds
-#define TICKS_40S   60000U
+#define TICKS_10S   14563U// should be 15000U but VLO is not exactly 12 kHz, so this is based on measurements
+#define TICKS_40S   58252U
 
 // 4 h  = 14400 s  / 40 s = 360 chunks
 // 20 h = 72000 s  / 40 s = 1800 chunks
@@ -22,9 +23,34 @@ static void led_off(void)
     P1DIR &= ~LED_PIN;      // OFF = Hi-Z
 }
 
+static void delay_1s(void)
+{
+    __delay_cycles(300000UL);   // 1s at 1 MHz
+}
+
+static void startup_pattern(void)
+{
+    unsigned char n;
+
+    for (n = 0; n < 2; n++)
+    {
+        led_on();
+        delay_1s();
+
+        led_off();
+        delay_1s();
+    }
+}
+
 int main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;
+
+    // Set DCO to 1 MHz, ACLK = VLO ~12 kHz
+    DCOCTL = 0;
+    BCSCTL1 = XT2OFF | RSEL2 | RSEL1;   // rough range
+    DCOCTL = DCO1 | DCO0;               // rough ~1 MHz-ish
+    BCSCTL3 |= LFXT1S_2;    // ACLK = VLO
 
     P1SEL = 0x00;
 #ifdef P1SEL2
@@ -34,9 +60,9 @@ int main(void)
     P1OUT = 0x00;
     P1DIR = 0xFF;           // unused pins output low
 
-    led_on();               // start with 4h ON phase
+    startup_pattern();      // play a startup pattern to indicate the device is alive
 
-    BCSCTL3 |= LFXT1S_2;    // ACLK = VLO ~12 kHz
+    led_on();               // start with 4h ON phase
 
     TACCR0 = TICKS_40S;
     TACCTL0 = CCIE;
