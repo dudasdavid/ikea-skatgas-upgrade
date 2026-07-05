@@ -1,26 +1,26 @@
 #include <msp430.h>
 
-#define LED_PIN BIT2
+#define SLEEP_PIN BIT5
 
 // VLO ~12 kHz, ACLK/8 ~1500 Hz
-// 60000 / 1500 ≈ 40 seconds
-#define TICKS_10S   14563U// should be 15000U but VLO is not exactly 12 kHz, so this is based on measurements
-#define TICKS_40S   58252U
+// 45000 / 1500 ≈ 30 seconds
+#define TICKS_10S   16485U// should be 15000U but VLO is not exactly 12 kHz, so this is based on measurements
+#define TICKS_30S   49456U
 
-// 4 h  = 14400 s  / 40 s = 360 chunks
-// 20 h = 72000 s  / 40 s = 1800 chunks
-#define ON_CHUNKS   360U
-#define OFF_CHUNKS  1800U
+// 4 h  = 14400 s  / 30 s = 480 chunks
+// 20 h = 72000 s  / 30 s = 2400 chunks
+#define ON_CHUNKS   480U
+#define OFF_CHUNKS  2400U
 
-static void led_on(void)
+static void awake(void)
 {
-    P1OUT &= ~LED_PIN;
-    P1DIR |= LED_PIN;       // ON = sink
+    P1OUT &= ~SLEEP_PIN;
+    P1DIR |= SLEEP_PIN;     // ON = drive low
 }
 
-static void led_off(void)
+static void sleep(void)
 {
-    P1DIR &= ~LED_PIN;      // OFF = Hi-Z
+    P1DIR &= ~SLEEP_PIN;    // OFF = Hi-Z
 }
 
 static void delay_1s(void)
@@ -34,10 +34,10 @@ static void startup_pattern(void)
 
     for (n = 0; n < 2; n++)
     {
-        led_on();
+        awake();
         delay_1s();
 
-        led_off();
+        sleep();
         delay_1s();
     }
 }
@@ -58,13 +58,15 @@ int main(void)
 #endif
 
     P1OUT = 0x00;
-    P1DIR = 0xFF;           // unused pins output low
+    P1DIR = 0xFF & ~SLEEP_PIN;  // unused pins output low, SLEEP starts Hi-Z
 
-    startup_pattern();      // play a startup pattern to indicate the device is alive
+    awake();                    // enable before the startup pattern is played
 
-    led_on();               // start with 4h ON phase
+    startup_pattern();          // play a startup pattern to indicate the device is alive
 
-    TACCR0 = TICKS_40S;
+    awake();                    // start with 4h ON phase
+
+    TACCR0 = TICKS_30S;
     TACCTL0 = CCIE;
     TACTL = TASSEL_1 | ID_3 | MC_1 | TACLR;   // ACLK / 8, up mode
 
@@ -82,13 +84,13 @@ void __attribute__((interrupt(TIMERA0_VECTOR))) Timer_A_ISR(void)
 
     chunks++;
 
-    if (P1DIR & LED_PIN)
+    if (P1DIR & SLEEP_PIN)
     {
         // currently ON
         if (chunks >= ON_CHUNKS)
         {
             chunks = 0;
-            led_off();
+            sleep();
         }
     }
     else
@@ -97,7 +99,7 @@ void __attribute__((interrupt(TIMERA0_VECTOR))) Timer_A_ISR(void)
         if (chunks >= OFF_CHUNKS)
         {
             chunks = 0;
-            led_on();
+            awake();
         }
     }
 }
