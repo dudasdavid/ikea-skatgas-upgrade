@@ -134,7 +134,7 @@ Build the firmware from the `firmware` directory:
 ./build.sh
 ```
 
-Select the target device in `build.sh`.
+Select the target device in `build.sh` (e.g MSP430G2210 or MSP430FR2311).
 
 Connect to the debugger from the terminal:
 
