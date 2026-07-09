@@ -14,6 +14,11 @@ $TOOL/bin/msp430-elf-gcc \
     main.c \
     -o main.elf
 
+$TOOL/bin/msp430-elf-objcopy \
+    -O ihex \
+    main.elf \
+    main.hex
+
 echo ""
 echo "Build successful"
 echo ""
