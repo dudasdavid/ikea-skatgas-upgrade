@@ -1,105 +1,109 @@
 #include <msp430.h>
 
 #define SLEEP_PIN BIT5
+#define TEST_PIN BIT2
 
-// VLO ~12 kHz, ACLK/8 ~1500 Hz
-// 45000 / 1500 ≈ 30 seconds
-#define TICKS_10S   16485U// should be 15000U but VLO is not exactly 12 kHz, so this is based on measurements
-#define TICKS_30S   49456U
+#define XT1_PIN_MASK (BIT6 | BIT7)
+#define XT1_STARTUP_ATTEMPTS 200U
+#define XT1_SETTLE_CYCLES 10000U
+#define RTC_TICKS_5S 159U
 
-// 4 h  = 14400 s  / 30 s = 480 chunks
-// 20 h = 72000 s  / 30 s = 2400 chunks
-#define ON_CHUNKS   480U
-#define OFF_CHUNKS  2400U
-
-static void awake(void)
+static void sleep_pin_on(void)
 {
     P1OUT &= ~SLEEP_PIN;
-    P1DIR |= SLEEP_PIN;     // ON = drive low
+    P1DIR |= SLEEP_PIN;
 }
 
-static void sleep(void)
+static void sleep_pin_off(void)
 {
-    P1DIR &= ~SLEEP_PIN;    // OFF = Hi-Z
+    P1DIR &= ~SLEEP_PIN;
 }
 
-static void delay_1s(void)
+static void sleep_pin_toggle(void)
 {
-    __delay_cycles(300000UL);   // 1s at 1 MHz
-}
-
-static void startup_pattern(void)
-{
-    unsigned char n;
-
-    for (n = 0; n < 2; n++)
+    if (P1DIR & SLEEP_PIN)
     {
-        awake();
-        delay_1s();
-
-        sleep();
-        delay_1s();
+        sleep_pin_off();
     }
+    else
+    {
+        sleep_pin_on();
+    }
+}
+
+static void init_gpio(void)
+{
+    P1SEL0 &= ~(SLEEP_PIN | TEST_PIN);
+    P1SEL1 &= ~(SLEEP_PIN | TEST_PIN);
+    P1REN &= ~(SLEEP_PIN | TEST_PIN);
+
+    P1OUT &= ~TEST_PIN;
+    P1DIR |= TEST_PIN;
+    sleep_pin_off();
+
+    P2SEL0 &= ~XT1_PIN_MASK;
+    P2SEL1 |= XT1_PIN_MASK;
+    P2REN &= ~XT1_PIN_MASK;
+
+    PM5CTL0 &= ~LOCKLPM5;
+}
+
+static unsigned char init_xt1(void)
+{
+    unsigned int attempts = XT1_STARTUP_ATTEMPTS;
+
+    CSCTL4 = SELA__XT1CLK;
+    CSCTL6 = XT1DRIVE_3;
+    P1OUT |= TEST_PIN;
+
+    do
+    {
+        CSCTL7 &= ~XT1OFFG;
+        SFRIFG1 &= ~OFIFG;
+        __delay_cycles(XT1_SETTLE_CYCLES);
+    }
+    while ((SFRIFG1 & OFIFG) && --attempts);
+
+    if (SFRIFG1 & OFIFG)
+    {
+        P1OUT |= TEST_PIN;
+        return 0;
+    }
+
+    P1OUT &= ~TEST_PIN;
+    CSCTL6 = XT1DRIVE_0;
+    return 1;
+}
+
+static void init_rtc(void)
+{
+    RTCCTL = RTCSS__DISABLED;
+    RTCMOD = RTC_TICKS_5S;
+    RTCCTL = RTCSS__XT1CLK | RTCPS__1024 | RTCIE | RTCSR;
 }
 
 int main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;
 
-    // Set DCO to 1 MHz, ACLK = VLO ~12 kHz
-    DCOCTL = 0;
-    BCSCTL1 = XT2OFF | RSEL2 | RSEL1;   // rough range
-    DCOCTL = DCO1 | DCO0;               // rough ~1 MHz-ish
-    BCSCTL3 |= LFXT1S_2;    // ACLK = VLO
-
-    P1SEL = 0x00;
-#ifdef P1SEL2
-    P1SEL2 = 0x00;
-#endif
-
-    P1OUT = 0x00;
-    P1DIR = 0xFF & ~SLEEP_PIN;  // unused pins output low, SLEEP starts Hi-Z
-
-    awake();                    // enable before the startup pattern is played
-
-    startup_pattern();          // play a startup pattern to indicate the device is alive
-
-    awake();                    // start with 4h ON phase
-
-    TACCR0 = TICKS_30S;
-    TACCTL0 = CCIE;
-    TACTL = TASSEL_1 | ID_3 | MC_1 | TACLR;   // ACLK / 8, up mode
-
+    init_gpio();
+    (void)init_xt1();
+    init_rtc();
     __enable_interrupt();
 
     while (1)
     {
-        __bis_SR_register(LPM3_bits | GIE);
     }
 }
 
-void __attribute__((interrupt(TIMERA0_VECTOR))) Timer_A_ISR(void)
+void __attribute__((interrupt(RTC_VECTOR))) RTC_ISR(void)
 {
-    static unsigned int chunks = 0;
-
-    chunks++;
-
-    if (P1DIR & SLEEP_PIN)
+    switch (RTCIV)
     {
-        // currently ON
-        if (chunks >= ON_CHUNKS)
-        {
-            chunks = 0;
-            sleep();
-        }
-    }
-    else
-    {
-        // currently OFF
-        if (chunks >= OFF_CHUNKS)
-        {
-            chunks = 0;
-            awake();
-        }
+    case RTCIV__RTCIFG:
+        sleep_pin_toggle();
+        break;
+    default:
+        break;
     }
 }
