@@ -6,6 +6,7 @@
 #define XT1_PIN_MASK (BIT6 | BIT7)
 #define XT1_STARTUP_ATTEMPTS 200U
 #define XT1_SETTLE_CYCLES 10000U
+#define RTC_TICKS_5S 159U
 #define RTC_TICKS_10S 319U
 #define AWAKE_05S_CYCLES 500000UL
 
@@ -98,8 +99,14 @@ static unsigned char init_xt1(void)
 static void init_rtc(void)
 {
     RTCCTL = RTCSS__DISABLED;
-    RTCMOD = RTC_TICKS_10S;
+    RTCMOD = RTC_TICKS_5S;
     RTCCTL = RTCSS__XT1CLK | RTCPS__1024 | RTCIE | RTCSR;
+}
+
+static void set_rtc_period(unsigned int ticks)
+{
+    RTCCTL |= RTCSR;
+    RTCMOD = ticks;
 }
 
 int main(void)
@@ -129,11 +136,13 @@ void __attribute__((interrupt(RTC_VECTOR))) RTC_ISR(void)
         {
             // currently ON
             sleep();
+            set_rtc_period(RTC_TICKS_10S);
         }
         else
         {
             // currently OFF
             awake();
+            set_rtc_period(RTC_TICKS_5S);
         }
         break;
     default:
