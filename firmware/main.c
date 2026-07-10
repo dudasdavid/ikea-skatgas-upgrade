@@ -8,9 +8,13 @@
 #define XT1_SETTLE_CYCLES 10000U
 #define RTC_TICKS_5S 159U
 #define RTC_TICKS_10S 319U
+#define RTC_TICKS_12S 383U
+#define RTC_TICKS_20S 639U
 #define AWAKE_05S_CYCLES 500000UL
 
 static volatile unsigned char stored_mode __attribute__((section(".persistent"))) = 4;
+static unsigned int on_ticks;
+static unsigned int off_ticks;
 
 static void fram_write_enable(void)
 {
@@ -43,6 +47,20 @@ static unsigned char normalize_mode(unsigned char mode)
 static unsigned char opposite_mode(unsigned char mode)
 {
     return (mode == 4U) ? 6U : 4U;
+}
+
+static void configure_mode_timing(unsigned char mode)
+{
+    if (mode == 6U)
+    {
+        on_ticks = RTC_TICKS_12S;
+        off_ticks = RTC_TICKS_20S;
+    }
+    else
+    {
+        on_ticks = RTC_TICKS_5S;
+        off_ticks = RTC_TICKS_10S;
+    }
 }
 
 static void awake(void)
@@ -134,7 +152,7 @@ static unsigned char init_xt1(void)
 static void init_rtc(void)
 {
     RTCCTL = RTCSS__DISABLED;
-    RTCMOD = RTC_TICKS_5S;
+    RTCMOD = on_ticks;
     RTCCTL = RTCSS__XT1CLK | RTCPS__1024 | RTCIE | RTCSR;
 }
 
@@ -153,6 +171,7 @@ int main(void)
     init_gpio();
 
     mode = normalize_mode(stored_mode);
+    configure_mode_timing(mode);
     write_stored_mode(opposite_mode(mode));
 
     awake();
@@ -180,13 +199,13 @@ void __attribute__((interrupt(RTC_VECTOR))) RTC_ISR(void)
         {
             // currently ON
             sleep();
-            set_rtc_period(RTC_TICKS_10S);
+            set_rtc_period(off_ticks);
         }
         else
         {
             // currently OFF
             awake();
-            set_rtc_period(RTC_TICKS_5S);
+            set_rtc_period(on_ticks);
         }
         break;
     default:
