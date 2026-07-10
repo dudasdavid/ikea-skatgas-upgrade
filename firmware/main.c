@@ -6,15 +6,19 @@
 #define XT1_PIN_MASK (BIT6 | BIT7)
 #define XT1_STARTUP_ATTEMPTS 200U
 #define XT1_SETTLE_CYCLES 10000U
-#define RTC_TICKS_5S 159U
-#define RTC_TICKS_10S 319U
-#define RTC_TICKS_12S 383U
-#define RTC_TICKS_20S 639U
+#define RTC_TICKS_30MIN 57599U
 #define AWAKE_05S_CYCLES 500000UL
 
+#define CHUNKS_PER_HOUR 2U
+#define ON_CHUNKS_4H (4U * CHUNKS_PER_HOUR)
+#define OFF_CHUNKS_20H (20U * CHUNKS_PER_HOUR)
+#define ON_CHUNKS_6H (6U * CHUNKS_PER_HOUR)
+#define OFF_CHUNKS_18H (18U * CHUNKS_PER_HOUR)
+
 static volatile unsigned char stored_mode __attribute__((section(".persistent"))) = 4;
-static unsigned int on_ticks;
-static unsigned int off_ticks;
+static unsigned int on_chunks;
+static unsigned int off_chunks;
+static unsigned int elapsed_chunks;
 
 static void fram_write_enable(void)
 {
@@ -53,13 +57,13 @@ static void configure_mode_timing(unsigned char mode)
 {
     if (mode == 6U)
     {
-        on_ticks = RTC_TICKS_12S;
-        off_ticks = RTC_TICKS_20S;
+        on_chunks = ON_CHUNKS_6H;
+        off_chunks = OFF_CHUNKS_18H;
     }
     else
     {
-        on_ticks = RTC_TICKS_5S;
-        off_ticks = RTC_TICKS_10S;
+        on_chunks = ON_CHUNKS_4H;
+        off_chunks = OFF_CHUNKS_20H;
     }
 }
 
@@ -152,14 +156,8 @@ static unsigned char init_xt1(void)
 static void init_rtc(void)
 {
     RTCCTL = RTCSS__DISABLED;
-    RTCMOD = on_ticks;
+    RTCMOD = RTC_TICKS_30MIN;
     RTCCTL = RTCSS__XT1CLK | RTCPS__1024 | RTCIE | RTCSR;
-}
-
-static void set_rtc_period(unsigned int ticks)
-{
-    RTCCTL |= RTCSR;
-    RTCMOD = ticks;
 }
 
 int main(void)
@@ -180,6 +178,7 @@ int main(void)
     write_stored_mode(mode);
 
     awake();
+    elapsed_chunks = 0;
     (void)init_xt1();
     init_rtc();
 
@@ -195,17 +194,25 @@ void __attribute__((interrupt(RTC_VECTOR))) RTC_ISR(void)
     switch (RTCIV)
     {
     case RTCIV__RTCIFG:
+        elapsed_chunks++;
+
         if (P1DIR & SLEEP_PIN)
         {
             // currently ON
-            sleep();
-            set_rtc_period(off_ticks);
+            if (elapsed_chunks >= on_chunks)
+            {
+                elapsed_chunks = 0;
+                sleep();
+            }
         }
         else
         {
             // currently OFF
-            awake();
-            set_rtc_period(on_ticks);
+            if (elapsed_chunks >= off_chunks)
+            {
+                elapsed_chunks = 0;
+                awake();
+            }
         }
         break;
     default:
