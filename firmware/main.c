@@ -10,6 +10,41 @@
 #define RTC_TICKS_10S 319U
 #define AWAKE_05S_CYCLES 500000UL
 
+static volatile unsigned char stored_mode __attribute__((section(".persistent"))) = 4;
+
+static void fram_write_enable(void)
+{
+    SYSCFG0 = FRWPPW;
+}
+
+static void fram_write_protect(void)
+{
+    SYSCFG0 = FRWPPW | PFWP;
+}
+
+static void write_stored_mode(unsigned char mode)
+{
+    fram_write_enable();
+    stored_mode = mode;
+    fram_write_protect();
+}
+
+static unsigned char normalize_mode(unsigned char mode)
+{
+    if ((mode != 4U) && (mode != 6U))
+    {
+        mode = 4U;
+        write_stored_mode(mode);
+    }
+
+    return mode;
+}
+
+static unsigned char opposite_mode(unsigned char mode)
+{
+    return (mode == 4U) ? 6U : 4U;
+}
+
 static void awake(void)
 {
     P1OUT &= ~SLEEP_PIN;
@@ -30,11 +65,11 @@ static void delay_05s(void)
     __delay_cycles(AWAKE_05S_CYCLES);
 }
 
-static void startup_pattern(void)
+static void startup_pattern(unsigned char count)
 {
     unsigned char n;
 
-    for (n = 0; n < 3; n++)
+    for (n = 0; n < count; n++)
     {
         awake();
         delay_05s();
@@ -111,11 +146,20 @@ static void set_rtc_period(unsigned int ticks)
 
 int main(void)
 {
+    unsigned char mode;
+
     WDTCTL = WDTPW | WDTHOLD;
 
     init_gpio();
+
+    mode = normalize_mode(stored_mode);
+    write_stored_mode(opposite_mode(mode));
+
     awake();
-    startup_pattern();
+    startup_pattern(mode);
+
+    write_stored_mode(mode);
+
     awake();
     (void)init_xt1();
     init_rtc();
