@@ -93,10 +93,10 @@ static void startup_pattern(unsigned char count)
 
     for (n = 0; n < count; n++)
     {
-        awake();
+        sleep();
         delay_05s();
 
-        sleep();
+        awake();
         delay_05s();
     }
 }
@@ -173,11 +173,12 @@ int main(void)
     write_stored_mode(opposite_mode(mode));
 
     awake();
+    delay_05s();
+
     startup_pattern(mode);
 
     write_stored_mode(mode);
 
-    awake();
     elapsed_chunks = 0;
     (void)init_xt1();
     init_rtc();
