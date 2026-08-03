@@ -7,13 +7,14 @@
 #define XT1_STARTUP_ATTEMPTS 200U
 #define XT1_SETTLE_CYCLES 10000U
 #define RTC_TICKS_30MIN 57599U
+#define RTC_TICKS_10S 319U
 #define AWAKE_05S_CYCLES 500000UL
 
 #define CHUNKS_PER_HOUR 2U
-#define ON_CHUNKS_4H (4U * CHUNKS_PER_HOUR)
-#define OFF_CHUNKS_20H (20U * CHUNKS_PER_HOUR)
-#define ON_CHUNKS_6H (6U * CHUNKS_PER_HOUR)
-#define OFF_CHUNKS_18H (18U * CHUNKS_PER_HOUR)
+#define ON_CHUNKS_4H 1//(4U * CHUNKS_PER_HOUR)
+#define OFF_CHUNKS_20H 1//(20U * CHUNKS_PER_HOUR)
+#define ON_CHUNKS_6H 2//(6U * CHUNKS_PER_HOUR)
+#define OFF_CHUNKS_18H 1//(18U * CHUNKS_PER_HOUR)
 
 static volatile unsigned char stored_mode __attribute__((section(".persistent"))) = 4;
 static unsigned int on_chunks;
@@ -156,7 +157,7 @@ static unsigned char init_xt1(void)
 static void init_rtc(void)
 {
     RTCCTL = RTCSS__DISABLED;
-    RTCMOD = RTC_TICKS_30MIN;
+    RTCMOD = RTC_TICKS_10S;
     RTCCTL = RTCSS__XT1CLK | RTCPS__1024 | RTCIE | RTCSR;
 }
 
