@@ -8,7 +8,7 @@
 #define RTC_TICKS_30MIN 57599U
 #define AWAKE_05S_CYCLES 500000UL
 #define STARTUP_DELAY_CYCLES 1600000UL
-#define IR_VALUE_CYCLES 902UL
+#define IR_VALUE_CYCLES 868UL
 #define ARRAY_LENGTH(a) (sizeof(a) / sizeof((a)[0]))
 
 #define CHUNKS_PER_HOUR 2U
@@ -22,6 +22,7 @@ static unsigned int on_chunks;
 static unsigned int off_chunks;
 static unsigned int elapsed_chunks;
 static unsigned char is_on;
+static unsigned char use_toggled_pattern;
 static const unsigned char off_pattern[] =
 {
     0U, 1U, 0U, 1U, 0U, 1U, 0U, 1U,
@@ -29,6 +30,15 @@ static const unsigned char off_pattern[] =
     1U, 0U, 1U, 1U, 0U, 0U, 1U, 0U,
     1U, 0U
 };
+
+static const unsigned char off_pattern_toggled[] =
+{
+    0U, 1U, 0U, 0U, 1U, 1U, 0U, 1U,
+    0U, 1U, 0U, 1U, 0U, 1U, 0U, 0U,
+    1U, 0U, 1U, 1U, 0U, 0U, 1U, 0U,
+    1U, 0U
+};
+
 static const unsigned char on_pattern[] =
 {
     0U, 1U, 0U, 1U, 0U, 1U, 0U, 1U,
@@ -37,7 +47,18 @@ static const unsigned char on_pattern[] =
     1U, 1U, 0U
 };
 
+static const unsigned char on_pattern_toggled[] =
+{
+    0U, 1U, 0U, 0U, 1U, 1U, 0U, 1U,
+    0U, 1U, 0U, 1U, 0U, 1U, 0U, 0U,
+    1U, 0U, 1U, 0U, 1U, 0U, 1U, 0U,
+    1U, 1U, 0U
+};
+
 static void output_ir_pattern(const unsigned char *values, unsigned int count);
+static void output_ir_command(const unsigned char *normal_pattern,
+                              const unsigned char *toggled_pattern,
+                              unsigned int count);
 
 static void fram_write_enable(void)
 {
@@ -88,13 +109,13 @@ static void configure_mode_timing(unsigned char mode)
 
 static void awake(void)
 {
-    output_ir_pattern(on_pattern, ARRAY_LENGTH(on_pattern));
+    output_ir_command(on_pattern, on_pattern_toggled, ARRAY_LENGTH(on_pattern));
     is_on = 1U;
 }
 
 static void sleep(void)
 {
-    output_ir_pattern(off_pattern, ARRAY_LENGTH(off_pattern));
+    output_ir_command(off_pattern, off_pattern_toggled, ARRAY_LENGTH(off_pattern));
     is_on = 0U;
 }
 
@@ -122,6 +143,18 @@ static void output_ir_pattern(const unsigned char *values, unsigned int count)
     }
 
     P1OUT &= ~IR_PIN;
+}
+
+static void output_ir_command(const unsigned char *normal_pattern,
+                              const unsigned char *toggled_pattern,
+                              unsigned int count)
+{
+    const unsigned char *pattern = use_toggled_pattern
+                                       ? toggled_pattern
+                                       : normal_pattern;
+
+    output_ir_pattern(pattern, count);
+    use_toggled_pattern ^= 1U;
 }
 
 static void startup_pattern(unsigned char count)
