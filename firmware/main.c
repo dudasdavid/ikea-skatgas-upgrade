@@ -1,13 +1,15 @@
 #include <msp430.h>
 
-#define SLEEP_PIN BIT5
-#define TEST_PIN BIT2
+#define IR_PIN BIT2
 
 #define XT1_PIN_MASK (BIT6 | BIT7)
 #define XT1_STARTUP_ATTEMPTS 200U
 #define XT1_SETTLE_CYCLES 10000U
 #define RTC_TICKS_30MIN 57599U
 #define AWAKE_05S_CYCLES 500000UL
+#define STARTUP_DELAY_CYCLES 1600000UL
+#define IR_VALUE_CYCLES 902UL
+#define ARRAY_LENGTH(a) (sizeof(a) / sizeof((a)[0]))
 
 #define CHUNKS_PER_HOUR 2U
 #define ON_CHUNKS_4H (4U * CHUNKS_PER_HOUR)
@@ -19,6 +21,23 @@ static volatile unsigned char stored_mode __attribute__((section(".persistent"))
 static unsigned int on_chunks;
 static unsigned int off_chunks;
 static unsigned int elapsed_chunks;
+static unsigned char is_on;
+static const unsigned char off_pattern[] =
+{
+    0U, 1U, 0U, 1U, 0U, 1U, 0U, 1U,
+    0U, 1U, 0U, 1U, 0U, 1U, 0U, 0U,
+    1U, 0U, 1U, 1U, 0U, 0U, 1U, 0U,
+    1U, 0U
+};
+static const unsigned char on_pattern[] =
+{
+    0U, 1U, 0U, 1U, 0U, 1U, 0U, 1U,
+    0U, 1U, 0U, 1U, 0U, 1U, 0U, 0U,
+    1U, 0U, 1U, 0U, 1U, 0U, 1U, 0U,
+    1U, 1U, 0U
+};
+
+static void output_ir_pattern(const unsigned char *values, unsigned int count);
 
 static void fram_write_enable(void)
 {
@@ -69,22 +88,40 @@ static void configure_mode_timing(unsigned char mode)
 
 static void awake(void)
 {
-    P1OUT &= ~SLEEP_PIN;
-    P1REN &= ~SLEEP_PIN;
-    P1DIR |= SLEEP_PIN;
+    output_ir_pattern(on_pattern, ARRAY_LENGTH(on_pattern));
+    is_on = 1U;
 }
 
 static void sleep(void)
 {
-    /* Hi-Z needed for OFF cycles since IKEA IC has an internal pullup */
-    P1OUT &= ~SLEEP_PIN;  // Preload low for next activation
-    P1REN &= ~SLEEP_PIN;  // Disable internal pull-up/down
-    P1DIR &= ~SLEEP_PIN;  // Input = High-Z
+    output_ir_pattern(off_pattern, ARRAY_LENGTH(off_pattern));
+    is_on = 0U;
 }
 
 static void delay_05s(void)
 {
     __delay_cycles(AWAKE_05S_CYCLES);
+}
+
+static void output_ir_pattern(const unsigned char *values, unsigned int count)
+{
+    unsigned int n;
+
+    for (n = 0; n < count; n++)
+    {
+        if (values[n] == 0U)
+        {
+            P1OUT |= IR_PIN;
+        }
+        else
+        {
+            P1OUT &= ~IR_PIN;
+        }
+
+        __delay_cycles(IR_VALUE_CYCLES);
+    }
+
+    P1OUT &= ~IR_PIN;
 }
 
 static void startup_pattern(unsigned char count)
@@ -109,7 +146,8 @@ static void init_gpio(void)
     P1SEL0 = 0x00;
     P1SEL1 = 0x00;
 
-    sleep();
+    P1OUT &= ~IR_PIN;
+    P1DIR |= IR_PIN;
 
     P2OUT = 0x00;
     P2DIR = (unsigned char)~XT1_PIN_MASK;
@@ -132,7 +170,6 @@ static unsigned char init_xt1(void)
 
     CSCTL4 = SELA__XT1CLK;
     CSCTL6 = XT1DRIVE_3 | XT1BYPASS_0 | XT1AGCOFF_0 | XT1AUTOOFF_0;
-    P1OUT |= TEST_PIN;
 
     do
     {
@@ -144,11 +181,9 @@ static unsigned char init_xt1(void)
 
     if (SFRIFG1 & OFIFG)
     {
-        P1OUT |= TEST_PIN;
         return 0;
     }
 
-    P1OUT &= ~TEST_PIN;
     CSCTL6 = XT1DRIVE_0 | XT1BYPASS_0 | XT1AGCOFF_0 | XT1AUTOOFF_0;
     return 1;
 }
@@ -167,6 +202,7 @@ int main(void)
     WDTCTL = WDTPW | WDTHOLD;
 
     init_gpio();
+    __delay_cycles(STARTUP_DELAY_CYCLES);
 
     mode = normalize_mode(stored_mode);
     configure_mode_timing(mode);
@@ -197,7 +233,7 @@ void __attribute__((interrupt(RTC_VECTOR))) RTC_ISR(void)
     case RTCIV__RTCIFG:
         elapsed_chunks++;
 
-        if (P1DIR & SLEEP_PIN)
+        if (is_on)
         {
             // currently ON
             if (elapsed_chunks >= on_chunks)
