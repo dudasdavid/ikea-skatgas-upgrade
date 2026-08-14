@@ -55,6 +55,38 @@ static const unsigned char on_pattern_toggled[] =
     1U, 1U, 0U
 };
 
+static const unsigned char sl_pattern[] =
+{
+    0U, 1U, 0U, 1U, 0U, 1U, 0U, 1U,
+    0U, 1U, 0U, 1U, 0U, 1U, 0U, 0U,
+    1U, 0U, 1U, 1U, 0U, 1U, 0U, 0U,
+    1U, 0U
+};
+
+static const unsigned char sl_pattern_toggled[] =
+{
+    0U, 1U, 0U, 0U, 1U, 1U, 0U, 1U,
+    0U, 1U, 0U, 1U, 0U, 1U, 0U, 0U,
+    1U, 0U, 1U, 1U, 0U, 1U, 0U, 0U,
+    1U, 0U
+};
+
+static const unsigned char down_pattern[] =
+{
+    0U, 1U, 0U, 1U, 0U, 1U, 0U, 1U,
+    0U, 1U, 0U, 1U, 0U, 1U, 0U, 0U,
+    1U, 0U, 1U, 1U, 0U, 0U, 1U, 1U,
+    0U, 0U
+};
+
+static const unsigned char down_pattern_toggled[] =
+{
+    0U, 1U, 0U, 0U, 1U, 1U, 0U, 1U,
+    0U, 1U, 0U, 1U, 0U, 1U, 0U, 0U,
+    1U, 0U, 1U, 1U, 0U, 0U, 1U, 1U,
+    0U, 0U
+};
+
 static void output_ir_pattern(const unsigned char *values, unsigned int count);
 static void output_ir_command(const unsigned char *normal_pattern,
                               const unsigned char *toggled_pattern,
