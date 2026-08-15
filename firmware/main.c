@@ -284,6 +284,15 @@ int main(void)
     (void)init_xt1();
     init_rtc();
 
+    delay_05s();
+    output_ir_command(sl_pattern, sl_pattern_toggled, ARRAY_LENGTH(sl_pattern));
+    delay_05s();
+    output_ir_command(down_pattern, down_pattern_toggled, ARRAY_LENGTH(down_pattern));
+    delay_05s();
+    output_ir_command(down_pattern, down_pattern_toggled, ARRAY_LENGTH(down_pattern));
+    delay_05s();
+    output_ir_command(down_pattern, down_pattern_toggled, ARRAY_LENGTH(down_pattern));
+
     while (1)
     {
         __bis_SR_register(LPM3_bits | GIE);
@@ -314,6 +323,14 @@ void __attribute__((interrupt(RTC_VECTOR))) RTC_ISR(void)
             {
                 elapsed_chunks = 0;
                 awake();
+                delay_05s();
+                output_ir_command(sl_pattern, sl_pattern_toggled, ARRAY_LENGTH(sl_pattern));
+                delay_05s();
+                output_ir_command(down_pattern, down_pattern_toggled, ARRAY_LENGTH(down_pattern));
+                delay_05s();
+                output_ir_command(down_pattern, down_pattern_toggled, ARRAY_LENGTH(down_pattern));
+                delay_05s();
+                output_ir_command(down_pattern, down_pattern_toggled, ARRAY_LENGTH(down_pattern));
             }
         }
         break;
